@@ -1,22 +1,44 @@
-{
-  "atta": {
+[
+  {
     "name": "Aashirvaad Atta 5kg",
-    "price": 250
+    "price": 220,
+    "category": "groceries",
+    "store": "BigBasket"
   },
-  "shampoo": {
-    "name": "Dove Shampoo 1L",
-    "price": 350
+  {
+    "name": "Pillsbury Atta 5kg",
+    "price": 210,
+    "category": "groceries",
+    "store": "Amazon"
   },
-  "rice": {
-    "name": "India Gate Basmati 1kg",
-    "price": 120
+  {
+    "name": "Dove Shampoo 340ml",
+    "price": 170,
+    "category": "personal care",
+    "store": "Flipkart"
   },
-  "oil": {
+  {
+    "name": "Head & Shoulders Shampoo 340ml",
+    "price": 180,
+    "category": "personal care",
+    "store": "Amazon"
+  },
+  {
+    "name": "Toor Dal 1kg",
+    "price": 120,
+    "category": "groceries",
+    "store": "BigBasket"
+  },
+  {
+    "name": "Moong Dal 1kg",
+    "price": 110,
+    "category": "groceries",
+    "store": "Amazon"
+  },
+  {
     "name": "Fortune Sunflower Oil 1L",
-    "price": 160
-  },
-  "toothpaste": {
-    "name": "Colgate 200g",
-    "price": 90
+    "price": 150,
+    "category": "groceries",
+    "store": "BigBasket"
   }
-}
+]
