@@ -2,44 +2,40 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from agent.siora_core import SioraAgent
-
-
 import streamlit as st
-import json
 from agent.siora_core import SioraAgent
 
-# Load product database
-with open("data/products.json", "r") as f:
-    products = json.load(f)
+st.set_page_config(page_title="Siora Smart Shopper", page_icon="🛒")
+
+st.title("🛍️ Meet Siora – Your Smart Shopping Assistant")
 
 # Initialize the agent
-agent = SioraAgent(products)
+agent = SioraAgent()
 
-st.title("🛒 Siora – Your Smart Shopping Agent")
+# Input box
+user_input = st.text_input("What do you need to buy?", "")
 
-# User input
-user_input = st.text_input("What do you need today?", placeholder="e.g. Buy atta and shampoo under 800")
-
+# Trigger search
 if st.button("Ask Siora"):
-    items, budget = agent.parse_request(user_input)
-    cart, total, approved = agent.create_cart(items, budget)
-
-    if cart:
-        st.write("### 🛍️ Items in your cart:")
-        for item in cart:
-            st.markdown(f"- **{item['name']}** – ₹{item['price']}")
-
-        st.write(f"**🧾 Total: ₹{total}**")
-
-        if approved:
-            confirm = st.checkbox("✅ Confirm purchase with Visa card simulation")
-
-            if confirm:
-                st.success("🎉 Purchase confirmed! Siora used your Visa card successfully.")
-            else:
-                st.info("🕐 Waiting for your confirmation to proceed.")
-        else:
-            st.error("❌ Budget exceeded. Please revise your cart.")
+    if user_input.strip() == "":
+        st.warning("Please type something, e.g., atta, shampoo, etc.")
     else:
-        st.warning("🤖 No matching items found. Try mentioning atta, shampoo, etc.")
+        items = agent.get_items(user_input)
+
+        if not items:
+            st.warning("🤖 No matching items found. Try mentioning atta, shampoo, etc.")
+        else:
+            st.subheader("🛒 Items in your cart:")
+            total = sum(item['price'] for item in items)
+            for item in items:
+                st.markdown(f"- **{item['name']}** – ₹{item['price']}")
+            st.markdown(f"**Total: ₹{total}**")
+
+            # Budget logic
+            if total <= agent.budget:
+                if st.checkbox("Confirm purchase?"):
+                    st.success("✅ All items are within budget. Proceeding with your Visa card simulation!")
+                else:
+                    st.info("🕒 Waiting for confirmation to proceed.")
+            else:
+                st.error("🚫 Items exceed your budget. Please remove something.")
