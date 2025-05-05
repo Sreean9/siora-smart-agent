@@ -28,4 +28,4 @@ class SioraAgent:
             else:
                 not_found.append(item)
         approved = (budget is None or total <= budget) and bool(cart)
-        return cart, total, approved, not_found  # <--- This must match your unpacking!
+        return cart, total, approved, not_found
