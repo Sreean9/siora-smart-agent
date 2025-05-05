@@ -1,58 +1,29 @@
-import sys
-import os
-import json
-import streamlit as st
+class SioraAgent:
+    def __init__(self, products):
+        self.products = products
+    
+    def parse_request(self, request):
+        # Very basic: split by "and", extract budget after "under"
+        items = []
+        budget = 1000  # default budget
+        if "under" in request:
+            parts = request.split("under")
+            items = [x.strip() for x in parts[0].replace("buy", "").split("and")]
+            try:
+                budget = int(parts[1].strip().split()[0])
+            except:
+                pass
+        else:
+            items = [x.strip() for x in request.replace("buy", "").split("and")]
+        return items, budget
 
-# Add parent directory to path for custom imports
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-from agent.siora_core import SioraAgent
-
-# Path to the product JSON
-PRODUCTS_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'data', 'products.json'))
-
-# Load product database safely
-try:
-    with open(PRODUCTS_PATH, "r") as f:
-        products = json.load(f)
-except FileNotFoundError:
-    st.error(f"Product database not found at {PRODUCTS_PATH}")
-    st.stop()
-except json.JSONDecodeError:
-    st.error("Product database is not a valid JSON file.")
-    st.stop()
-
-# Initialize the agent
-agent = SioraAgent(products)
-
-st.title("🛒 Siora – Your Smart Shopping Agent")
-
-# User input
-user_input = st.text_input(
-    "What do you need today?",
-    placeholder="e.g. Buy atta and shampoo under 800"
-)
-
-# Single button declaration
-ask = st.button("Ask Siora")
-
-if ask:
-    if user_input.strip():
-        try:
-            items, budget = agent.parse_request(user_input)
-            cart, total, approved = agent.create_cart(items, budget)
-
-            st.write("### 🛍️ Items in your cart:")
-            for item in cart:
-                st.write(f"- {item['name']} – ₹{item['price']}")
-
-            st.write(f"**Total: ₹{total}**")
-
-            if approved:
-                st.success("✅ All items are within budget. Proceeding with your Visa card simulation!")
-            else:
-                st.error("❌ Budget exceeded. Please revise your cart.")
-        except Exception as e:
-            st.error(f"An error occurred: {e}")
-    else:
-        st.warning("Please enter your shopping request.")
+    def create_cart(self, items, budget):
+        cart = []
+        total = 0
+        for item in items:
+            found = next((prod for prod in self.products if item.lower() in prod['name'].lower()), None)
+            if found:
+                cart.append(found)
+                total += found['price']
+        approved = total <= budget
+        return cart, total, approved
