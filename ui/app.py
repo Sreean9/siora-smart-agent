@@ -21,65 +21,40 @@ st.title("Siora Shopping Agent")
 # User input
 user_input = st.text_input("What do you need today?", "2kg rice")
 
-def safe_parse_request(text):
-    """Wrapper to ensure parse_request returns 3 values"""
-    try:
-        # Call the original method
-        result = agent.parse_request(text)
-        
-        # Force it to be a 3-tuple no matter what
-        if isinstance(result, tuple):
-            if len(result) == 0:
-                return [], {}, None
-            elif len(result) == 1:
-                return result[0], {}, None
-            elif len(result) == 2:
-                return result[0], result[1], None
-            else:  # 3 or more
-                return result[0], result[1], result[2]
-        else:
-            # Not a tuple at all
-            return [result], {}, None
-    except Exception as e:
-        st.error(f"Error in safe_parse_request: {str(e)}")
-        return [], {}, None
-
-def safe_create_cart(items, quantities, budget):
-    """Wrapper to ensure create_cart returns 4 values"""
-    try:
-        # Call the original method
-        result = agent.create_cart(items, quantities, budget)
-        
-        # Force it to be a 4-tuple no matter what
-        if isinstance(result, tuple):
-            if len(result) == 0:
-                return [], 0, False, []
-            elif len(result) == 1:
-                return result[0], 0, False, []
-            elif len(result) == 2:
-                return result[0], result[1], False, []
-            elif len(result) == 3:
-                return result[0], result[1], result[2], []
-            else:  # 4 or more
-                return result[0], result[1], result[2], result[3]
-        else:
-            # Not a tuple at all
-            return [result], 0, False, []
-    except Exception as e:
-        st.error(f"Error in safe_create_cart: {str(e)}")
-        return [], 0, False, []
-
 if st.button("Ask Siora"):
     try:
-        # Use the safe wrappers to guarantee correct return values
-        items, quantities, budget = safe_parse_request(user_input)
+        # Parse request and ensure it returns 3 values
+        try:
+            parse_result = agent.parse_request(user_input)
+            # Check if we got a tuple with 3 elements
+            if isinstance(parse_result, tuple) and len(parse_result) == 3:
+                items, quantities, budget = parse_result
+            else:
+                st.error(f"parse_request returned {type(parse_result)} with length {len(parse_result) if hasattr(parse_result, '__len__') else 'N/A'}")
+                # Provide default values
+                items, quantities, budget = [], {}, None
+        except Exception as e:
+            st.error(f"Error parsing request: {str(e)}")
+            items, quantities, budget = [], {}, None
         
         st.write("### Parsed Request:")
         st.write(f"Items: {items}")
         st.write(f"Quantities: {quantities}")
         st.write(f"Budget: {budget}")
         
-        cart, total, approved, not_found = safe_create_cart(items, quantities, budget)
+        # Create cart - make sure we pass ONLY 3 arguments
+        try:
+            cart_result = agent.create_cart(items, quantities, budget)
+            # Check if we got a tuple with 4 elements
+            if isinstance(cart_result, tuple) and len(cart_result) == 4:
+                cart, total, approved, not_found = cart_result
+            else:
+                st.error(f"create_cart returned {type(cart_result)} with length {len(cart_result) if hasattr(cart_result, '__len__') else 'N/A'}")
+                # Provide default values
+                cart, total, approved, not_found = [], 0, False, []
+        except Exception as e:
+            st.error(f"Error creating cart: {str(e)}")
+            cart, total, approved, not_found = [], 0, False, []
         
         st.write("### Cart:")
         if cart:
