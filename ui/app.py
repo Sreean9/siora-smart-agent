@@ -1,6 +1,8 @@
-import streamlit as st
-import json
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from agent.siora_core import SioraAgent
+
 
 # Load product database
 with open("data/products.json", "r") as f:
