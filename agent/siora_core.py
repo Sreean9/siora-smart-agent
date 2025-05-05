@@ -1,29 +1,33 @@
+import difflib
+
 class SioraAgent:
     def __init__(self, products):
         self.products = products
-    
+
     def parse_request(self, request):
-        # Very basic: split by "and", extract budget after "under"
-        items = []
-        budget = 1000  # default budget
-        if "under" in request:
-            parts = request.split("under")
-            items = [x.strip() for x in parts[0].replace("buy", "").split("and")]
-            try:
-                budget = int(parts[1].strip().split()[0])
-            except:
-                pass
-        else:
-            items = [x.strip() for x in request.replace("buy", "").split("and")]
+        # Extract items and optional budget from the request
+        request = request.lower().replace('buy', '').replace('and', ',')
+        items = [item.strip() for item in request.split(',') if item.strip()]
+        budget = None
+        for word in request.split():
+            if word.isdigit():
+                budget = int(word)
         return items, budget
 
-    def create_cart(self, items, budget):
+    def create_cart(self, items, budget=None):
         cart = []
         total = 0
+        not_found = []
         for item in items:
-            found = next((prod for prod in self.products if item.lower() in prod['name'].lower()), None)
-            if found:
-                cart.append(found)
-                total += found['price']
-        approved = total <= budget
-        return cart, total, approved
+            # Use fuzzy matching to find the closest product
+            names = [p['name'].lower() for p in self.products]
+            match = difflib.get_close_matches(item.lower(), names, n=1, cutoff=0.4)
+            if match:
+                idx = names.index(match[0])
+                product = self.products[idx]
+                cart.append(product)
+                total += product['price']
+            else:
+                not_found.append(item)
+        approved = True if (budget is None or total <= budget) and cart else False
+        return cart, total, approved, not_found
