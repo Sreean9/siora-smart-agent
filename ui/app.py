@@ -21,51 +21,86 @@ st.title("Siora Shopping Agent")
 # User input
 user_input = st.text_input("What do you need today?", "2kg rice")
 
-if st.button("Ask Siora"):
-    # Explicitly verify return values
+def safe_parse_request(text):
+    """Wrapper to ensure parse_request returns 3 values"""
     try:
-        # Call parse_request and immediately check length
-        parse_result = agent.parse_request(user_input)
-        st.write(f"Parse result: {parse_result}")
-        st.write(f"Type of parse result: {type(parse_result)}")
-        st.write(f"Length of parse result: {len(parse_result)}")
+        # Call the original method
+        result = agent.parse_request(text)
         
-        # Manually unpack to avoid ValueError
-        if len(parse_result) >= 3:
-            items = parse_result[0]
-            quantities = parse_result[1]
-            budget = parse_result[2]
-            
-            st.write(f"Items: {items}")
-            st.write(f"Quantities: {quantities}")
-            st.write(f"Budget: {budget}")
-            
-            # Call create_cart with individual arguments
-            cart_result = agent.create_cart(items, quantities, budget)
-            st.write(f"Cart result length: {len(cart_result)}")
-            
-            # Manually unpack again
-            if len(cart_result) >= 4:
-                cart = cart_result[0]
-                total = cart_result[1]
-                approved = cart_result[2]
-                not_found = cart_result[3]
-                
-                # Display cart
-                st.write("### Cart:")
-                for item in cart:
-                    st.write(f"- {item['quantity']} {item['unit']} {item['name']} - ₹{item['total_price']}")
-                
-                st.write(f"Total: ₹{total}")
-                st.write(f"Approved: {approved}")
-                
-                if not_found:
-                    st.warning(f"Not found: {', '.join(not_found)}")
-            else:
-                st.error(f"Invalid cart_result length: {len(cart_result)}")
+        # Force it to be a 3-tuple no matter what
+        if isinstance(result, tuple):
+            if len(result) == 0:
+                return [], {}, None
+            elif len(result) == 1:
+                return result[0], {}, None
+            elif len(result) == 2:
+                return result[0], result[1], None
+            else:  # 3 or more
+                return result[0], result[1], result[2]
         else:
-            st.error(f"Invalid parse_result length: {len(parse_result)}")
+            # Not a tuple at all
+            return [result], {}, None
     except Exception as e:
-        st.error(f"Error: {str(e)}")
+        st.error(f"Error in safe_parse_request: {str(e)}")
+        return [], {}, None
+
+def safe_create_cart(items, quantities, budget):
+    """Wrapper to ensure create_cart returns 4 values"""
+    try:
+        # Call the original method
+        result = agent.create_cart(items, quantities, budget)
+        
+        # Force it to be a 4-tuple no matter what
+        if isinstance(result, tuple):
+            if len(result) == 0:
+                return [], 0, False, []
+            elif len(result) == 1:
+                return result[0], 0, False, []
+            elif len(result) == 2:
+                return result[0], result[1], False, []
+            elif len(result) == 3:
+                return result[0], result[1], result[2], []
+            else:  # 4 or more
+                return result[0], result[1], result[2], result[3]
+        else:
+            # Not a tuple at all
+            return [result], 0, False, []
+    except Exception as e:
+        st.error(f"Error in safe_create_cart: {str(e)}")
+        return [], 0, False, []
+
+if st.button("Ask Siora"):
+    try:
+        # Use the safe wrappers to guarantee correct return values
+        items, quantities, budget = safe_parse_request(user_input)
+        
+        st.write("### Parsed Request:")
+        st.write(f"Items: {items}")
+        st.write(f"Quantities: {quantities}")
+        st.write(f"Budget: {budget}")
+        
+        cart, total, approved, not_found = safe_create_cart(items, quantities, budget)
+        
+        st.write("### Cart:")
+        if cart:
+            for item in cart:
+                quantity_str = f"{item['quantity']} {item['unit']}" if item['unit'] else f"{item['quantity']}"
+                st.write(f"- {quantity_str} {item['name']} - ₹{item['total_price']}")
+            
+            st.write(f"**Total: ₹{total}**")
+            
+            if approved:
+                st.success("✅ Your cart is ready for checkout!")
+            else:
+                if budget is not None:
+                    st.error(f"❌ Budget exceeded (₹{budget}).")
+            
+            if not_found:
+                st.warning(f"Could not find: {', '.join(not_found)}")
+        else:
+            st.info("No items found or added to cart.")
+            
+    except Exception as e:
+        st.error(f"Unexpected error: {str(e)}")
         import traceback
         st.code(traceback.format_exc())
