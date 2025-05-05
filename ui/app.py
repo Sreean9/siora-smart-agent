@@ -1,52 +1,55 @@
 import sys
 import os
 import streamlit as st
-import traceback
 
 # Add parent directory to path for custom imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from agent.siora_core import SioraAgent
 
-# Sample products for testing
+# Sample products
 sample_products = [
     {"name": "Rice", "price": 60},
     {"name": "Milk", "price": 25},
     {"name": "Apples", "price": 15}
 ]
 
-# Create the agent with sample products
+# Create agent
 agent = SioraAgent(sample_products)
 
 st.title("Siora Shopping Agent")
 
 # User input
-user_input = st.text_input("What do you need today?", "2kg rice, 1L milk, 5 apples")
+user_input = st.text_input("What do you need today?", "2kg rice")
 
 if st.button("Ask Siora"):
+    # Explicitly verify return values
     try:
-        # Get parse result and explicitly print the length
+        # Call parse_request and immediately check length
         parse_result = agent.parse_request(user_input)
         st.write(f"Parse result: {parse_result}")
+        st.write(f"Type of parse result: {type(parse_result)}")
         st.write(f"Length of parse result: {len(parse_result)}")
         
-        # Unpack only if we have exactly 3 values
-        if len(parse_result) == 3:
-            items, quantities, budget = parse_result
+        # Manually unpack to avoid ValueError
+        if len(parse_result) >= 3:
+            items = parse_result[0]
+            quantities = parse_result[1]
+            budget = parse_result[2]
             
-            # Print each value
             st.write(f"Items: {items}")
             st.write(f"Quantities: {quantities}")
             st.write(f"Budget: {budget}")
             
-            # Create cart with separate arguments to avoid *result unpacking issue
+            # Call create_cart with individual arguments
             cart_result = agent.create_cart(items, quantities, budget)
-            
-            # Check cart result length
             st.write(f"Cart result length: {len(cart_result)}")
             
-            # Unpack only if we have exactly 4 values
-            if len(cart_result) == 4:
-                cart, total, approved, not_found = cart_result
+            # Manually unpack again
+            if len(cart_result) >= 4:
+                cart = cart_result[0]
+                total = cart_result[1]
+                approved = cart_result[2]
+                not_found = cart_result[3]
                 
                 # Display cart
                 st.write("### Cart:")
@@ -59,9 +62,10 @@ if st.button("Ask Siora"):
                 if not_found:
                     st.warning(f"Not found: {', '.join(not_found)}")
             else:
-                st.error(f"Expected 4 values from create_cart, got {len(cart_result)}")
+                st.error(f"Invalid cart_result length: {len(cart_result)}")
         else:
-            st.error(f"Expected 3 values from parse_request, got {len(parse_result)}")
+            st.error(f"Invalid parse_result length: {len(parse_result)}")
     except Exception as e:
         st.error(f"Error: {str(e)}")
+        import traceback
         st.code(traceback.format_exc())
