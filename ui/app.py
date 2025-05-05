@@ -44,16 +44,25 @@ with st.expander("ℹ️ How to use Siora"):
     - Review your cart and proceed to checkout
     """)
 
-# Initialize session state
+# Initialize session state variables individually to avoid unpacking issues
 if 'cart' not in st.session_state:
     st.session_state.cart = []
+if 'total' not in st.session_state:
     st.session_state.total = 0
+if 'not_found' not in st.session_state:
     st.session_state.not_found = []
+if 'approved' not in st.session_state:
     st.session_state.approved = False
+if 'purchase_ready' not in st.session_state:
     st.session_state.purchase_ready = False
+if 'error' not in st.session_state:
     st.session_state.error = None
+if 'success_message' not in st.session_state:
     st.session_state.success_message = None
-    st.session_state.budget = None  # Add budget to session state
+if 'budget' not in st.session_state:
+    st.session_state.budget = None
+if 'debug_info' not in st.session_state:
+    st.session_state.debug_info = {}
 
 # User input
 user_input = st.text_input(
@@ -68,7 +77,6 @@ def reset_cart():
     st.session_state.not_found = []
     st.session_state.approved = False
     st.session_state.purchase_ready = False
-    st.session_state.error = None
     st.session_state.budget = None
 
 # Process user input
@@ -95,7 +103,7 @@ if st.button("Ask Siora"):
                 st.session_state.total = total
                 st.session_state.approved = approved
                 st.session_state.not_found = not_found
-                st.session_state.purchase_ready = approved and cart
+                st.session_state.purchase_ready = approved and bool(cart)  # Ensure it's a boolean
                 
                 # Debug information
                 st.session_state.debug_info = {
@@ -108,15 +116,17 @@ if st.button("Ask Siora"):
     else:
         st.session_state.error = "Please enter your shopping request."
 
-# Display any errors
-if st.session_state.error:
-    st.error(st.session_state.error)
-
-# Display success message if any
-if st.session_state.success_message:
+# Handle success message display - simpler approach
+if st.session_state.success_message is not None:
     st.success(st.session_state.success_message)
     # Clear success message after displaying
     st.session_state.success_message = None
+
+# Handle error display
+if st.session_state.error is not None:
+    st.error(st.session_state.error)
+    # Optional: Clear error after displaying
+    # st.session_state.error = None
 
 # Create two columns for cart and actions
 col1, col2 = st.columns([2, 1])
@@ -155,14 +165,14 @@ with col2:
         if st.button("Proceed to Pay with Visa", key="pay_button"):
             st.session_state.success_message = "💳 Paid with your Visa card! Your order is confirmed. 🎉"
             reset_cart()
-            st.rerun()
+            st.experimental_rerun()  # Use experimental_rerun instead of rerun for compatibility
     
     # Add a clear cart button
     if st.session_state.cart:
         if st.button("Clear Cart", key="clear_cart"):
             reset_cart()
             st.session_state.success_message = "Cart has been cleared!"
-            st.rerun()
+            st.experimental_rerun()  # Use experimental_rerun instead of rerun for compatibility
     
     # Add a simple help section
     st.write("### Need Help?")
@@ -171,8 +181,6 @@ with col2:
 # Debug section (only in development)
 if st.checkbox("Show Debug Info", value=False):
     st.write("### Debug Information")
-    if hasattr(st.session_state, 'debug_info'):
-        st.json(st.session_state.debug_info)
     st.write("### Session State")
     st.write({k: v for k, v in st.session_state.items() if k != 'cart'})
     if st.session_state.cart:
