@@ -1,6 +1,7 @@
 import sys
 import os
 import streamlit as st
+import traceback
 
 # Add parent directory to path for custom imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -23,26 +24,44 @@ user_input = st.text_input("What do you need today?", "2kg rice, 1L milk, 5 appl
 
 if st.button("Ask Siora"):
     try:
-        # This is the line that's causing the issue
-        result = agent.parse_request(user_input)
+        # Get parse result and explicitly print the length
+        parse_result = agent.parse_request(user_input)
+        st.write(f"Parse result: {parse_result}")
+        st.write(f"Length of parse result: {len(parse_result)}")
         
-        # Explicitly unpack the result to make sure we have 3 values
-        if len(result) == 3:
-            items, quantities, budget = result
-            st.success(f"Parsed successfully: {items}, {quantities}, {budget}")
-        else:
-            st.error(f"Parse_request returned {len(result)} values instead of 3: {result}")
+        # Unpack only if we have exactly 3 values
+        if len(parse_result) == 3:
+            items, quantities, budget = parse_result
             
-        # Try to create cart
-        cart, total, approved, not_found = agent.create_cart(*result)
-        
-        # Display cart
-        st.write(f"Cart: {cart}")
-        st.write(f"Total: {total}")
-        st.write(f"Approved: {approved}")
-        st.write(f"Not found: {not_found}")
-        
+            # Print each value
+            st.write(f"Items: {items}")
+            st.write(f"Quantities: {quantities}")
+            st.write(f"Budget: {budget}")
+            
+            # Create cart with separate arguments to avoid *result unpacking issue
+            cart_result = agent.create_cart(items, quantities, budget)
+            
+            # Check cart result length
+            st.write(f"Cart result length: {len(cart_result)}")
+            
+            # Unpack only if we have exactly 4 values
+            if len(cart_result) == 4:
+                cart, total, approved, not_found = cart_result
+                
+                # Display cart
+                st.write("### Cart:")
+                for item in cart:
+                    st.write(f"- {item['quantity']} {item['unit']} {item['name']} - ₹{item['total_price']}")
+                
+                st.write(f"Total: ₹{total}")
+                st.write(f"Approved: {approved}")
+                
+                if not_found:
+                    st.warning(f"Not found: {', '.join(not_found)}")
+            else:
+                st.error(f"Expected 4 values from create_cart, got {len(cart_result)}")
+        else:
+            st.error(f"Expected 3 values from parse_request, got {len(parse_result)}")
     except Exception as e:
         st.error(f"Error: {str(e)}")
-        import traceback
         st.code(traceback.format_exc())
