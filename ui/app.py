@@ -3,6 +3,7 @@ import os
 import json
 import streamlit as st
 import re
+import traceback
 
 # Add parent directory to path for custom imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -22,8 +23,28 @@ def load_products():
         st.error("Product database is not a valid JSON file.")
         st.stop()
 
-# Load products and initialize agent
-products = load_products()
+# Function to create sample products if no database exists (for testing)
+def create_sample_products():
+    return [
+        {"name": "Atta", "price": 45, "category": "Groceries"},
+        {"name": "Sugar", "price": 40, "category": "Groceries"},
+        {"name": "Rice", "price": 60, "category": "Groceries"},
+        {"name": "Dal", "price": 120, "category": "Groceries"},
+        {"name": "Milk", "price": 25, "category": "Dairy"},
+        {"name": "Bread", "price": 30, "category": "Bakery"},
+        {"name": "Eggs", "price": 60, "category": "Dairy"},
+        {"name": "Salt", "price": 20, "category": "Groceries"},
+        {"name": "Oil", "price": 120, "category": "Groceries"}
+    ]
+
+# Try to load products, or use sample data if not available
+try:
+    products = load_products()
+except Exception as e:
+    st.warning(f"Using sample product data due to: {str(e)}")
+    products = create_sample_products()
+
+# Create the agent with the products
 agent = SioraAgent(products)
 
 # Set page configuration
@@ -44,7 +65,7 @@ with st.expander("ℹ️ How to use Siora"):
     - Review your cart and proceed to checkout
     """)
 
-# Initialize session state variables individually to avoid unpacking issues
+# Initialize session state variables individually
 if 'cart' not in st.session_state:
     st.session_state.cart = []
 if 'total' not in st.session_state:
@@ -77,6 +98,7 @@ def reset_cart():
     st.session_state.not_found = []
     st.session_state.approved = False
     st.session_state.purchase_ready = False
+    st.session_state.error = None
     st.session_state.budget = None
 
 # Process user input
@@ -87,46 +109,51 @@ if st.button("Ask Siora"):
             st.session_state.error = None
             
             # Parse the request
-            items, quantities, budget = agent.parse_request(user_input)
-            
-            # Store budget in session state
-            st.session_state.budget = budget
-            
-            if not items:
-                st.session_state.error = "I couldn't understand your request. Please try again with a clearer shopping list."
-            else:
-                # Create the cart
-                cart, total, approved, not_found = agent.create_cart(items, quantities, budget)
+            try:
+                items, quantities, budget = agent.parse_request(user_input)
                 
-                # Update session state
-                st.session_state.cart = cart
-                st.session_state.total = total
-                st.session_state.approved = approved
-                st.session_state.not_found = not_found
-                st.session_state.purchase_ready = approved and bool(cart)  # Ensure it's a boolean
+                # Store budget in session state
+                st.session_state.budget = budget
                 
-                # Debug information
-                st.session_state.debug_info = {
-                    "parsed_items": items,
-                    "quantities": quantities,
-                    "budget": budget
-                }
-        except Exception as e:
-            st.session_state.error = f"An error occurred: {str(e)}"
+                if not items:
+                    st.session_state.error = "I couldn't understand your request. Please try again with a clearer shopping list."
+                else:
+                    # Create the cart
+                    cart, total, approved, not_found = agent.create_cart(items, quantities, budget)
+                    
+                    # Update session state
+                    st.session_state.cart = cart
+                    st.session_state.total = total
+                    st.session_state.approved = approved
+                    st.session_state.not_found = not_found
+                    st.session_state.purchase_ready = approved and bool(cart)  # Ensure it's a boolean
+                    
+                    # Debug information
+                    st.session_state.debug_info = {
+                        "parsed_items": items,
+                        "quantities": quantities,
+                        "budget": budget
+                    }
+            except ValueError as ve:
+                st.session_state.error = f"Error processing your request: {str(ve)}"
+            except Exception as e:
+                st.session_state.error = f"An unexpected error occurred: {str(e)}"
+                st.session_state.debug_info = {"error_trace": traceback.format_exc()}
+        except Exception as outer_e:
+            st.session_state.error = f"System error: {str(outer_e)}"
+            st.session_state.debug_info = {"outer_error_trace": traceback.format_exc()}
     else:
         st.session_state.error = "Please enter your shopping request."
 
-# Handle success message display - simpler approach
-if st.session_state.success_message is not None:
+# Display any errors
+if st.session_state.error:
+    st.error(st.session_state.error)
+
+# Display success message if any
+if st.session_state.success_message:
     st.success(st.session_state.success_message)
     # Clear success message after displaying
     st.session_state.success_message = None
-
-# Handle error display
-if st.session_state.error is not None:
-    st.error(st.session_state.error)
-    # Optional: Clear error after displaying
-    # st.session_state.error = None
 
 # Create two columns for cart and actions
 col1, col2 = st.columns([2, 1])
@@ -165,24 +192,26 @@ with col2:
         if st.button("Proceed to Pay with Visa", key="pay_button"):
             st.session_state.success_message = "💳 Paid with your Visa card! Your order is confirmed. 🎉"
             reset_cart()
-            st.experimental_rerun()  # Use experimental_rerun instead of rerun for compatibility
+            st.experimental_rerun()
     
     # Add a clear cart button
     if st.session_state.cart:
         if st.button("Clear Cart", key="clear_cart"):
             reset_cart()
             st.session_state.success_message = "Cart has been cleared!"
-            st.experimental_rerun()  # Use experimental_rerun instead of rerun for compatibility
+            st.experimental_rerun()
     
     # Add a simple help section
     st.write("### Need Help?")
     st.write("Try saying: 'buy rice 2kg and dal 1kg under 500'")
 
-# Debug section (only in development)
-if st.checkbox("Show Debug Info", value=False):
+# Debug section (always show when there's an error)
+show_debug = st.checkbox("Show Debug Info", value=st.session_state.error is not None)
+if show_debug:
     st.write("### Debug Information")
     st.write("### Session State")
-    st.write({k: v for k, v in st.session_state.items() if k != 'cart'})
+    debug_state = {k: v for k, v in st.session_state.items() if k != 'cart'}
+    st.json(debug_state)
     if st.session_state.cart:
         st.write("### Cart Details")
         st.json(st.session_state.cart)
