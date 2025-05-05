@@ -12,106 +12,75 @@ class SioraAgent:
         Example inputs:
         - "buy atta 5 kgs and sugar 2 kgs"
         - "I need rice 2kg, milk 1L under 500"
+        - "2kg rice, 1L milk, 5 apples"
         
         Returns:
         - items: List of product names
         - quantities: Dictionary of quantities
         - budget: Budget limit or None
         """
-        request = request.lower()
-        
         # Initialize return values
         items = []
         quantities = {}
         budget = None
         
+        # Clean and normalize the request
+        request = request.lower().strip()
+        
         # Extract budget if present
-        budget_patterns = [
-            r'under (\d+)',
-            r'less than (\d+)',
-            r'below (\d+)',
-            r'not more than (\d+)',
-            r'max (\d+)',
-            r'budget (\d+)'
-        ]
+        budget_match = re.search(r'under\s+(\d+)', request)
+        if budget_match:
+            try:
+                budget = int(budget_match.group(1))
+            except (ValueError, IndexError):
+                budget = None
         
-        for pattern in budget_patterns:
-            budget_match = re.search(pattern, request)
-            if budget_match:
-                try:
-                    budget = int(budget_match.group(1))
-                    break
-                except (ValueError, IndexError):
-                    # If conversion fails, continue with None budget
-                    pass
-        
-        # Clean the request for item extraction
-        request = re.sub(r'buy|need|get|want|please|i need|i want', '', request)
+        # Clean up the request by removing common shopping phrases
+        request = re.sub(r'\b(buy|get|need|want|please)\b', '', request)
         
         # Replace 'and' with comma for consistent splitting
-        request = request.replace(' and ', ', ')
+        request = re.sub(r'\band\b', ',', request)
         
         # Split by commas
-        raw_items = [item.strip() for item in request.split(',') if item.strip()]
+        parts = [part.strip() for part in request.split(',') if part.strip()]
         
-        # If no items found after comma splitting, try to extract from the whole string
-        if not raw_items and request.strip():
-            raw_items = [request.strip()]
-        
-        # Process each item to extract product names
-        for raw_item in raw_items:
-            # Safely extract product name and quantity
-            try:
-                # Pattern: product name followed by optional quantity and unit
-                match = re.match(r'([a-zA-Z\s]+)(?:\s+(\d+(?:\.\d+)?)\s*([a-zA-Z]+)?)?', raw_item)
+        for part in parts:
+            # Here we'll handle two possible formats:
+            # 1. "product quantity unit" format (e.g., "rice 2kg")
+            # 2. "quantity unit product" format (e.g., "2kg rice")
+            
+            # Check for format #2 first (quantity comes first)
+            quantity_first_match = re.match(r'^(\d+(?:\.\d+)?)\s*([a-zA-Z]+)?\s+([a-zA-Z\s]+)$', part)
+            
+            if quantity_first_match:
+                # Format is "2kg rice" or "5 apples"
+                quantity = float(quantity_first_match.group(1))
+                unit = quantity_first_match.group(2) or ''
+                product = quantity_first_match.group(3).strip()
                 
-                if match:
-                    product_name = match.group(1).strip()
-                    quantity_str = match.group(2)
-                    unit = match.group(3) if match.group(3) else ''
+                items.append(product)
+                quantities[product] = {'amount': quantity, 'unit': unit}
+            else:
+                # Try format #1 (product comes first)
+                product_first_match = re.match(r'^([a-zA-Z\s]+)\s+(\d+(?:\.\d+)?)\s*([a-zA-Z]+)?$', part)
+                
+                if product_first_match:
+                    # Format is "rice 2kg"
+                    product = product_first_match.group(1).strip()
+                    quantity = float(product_first_match.group(2))
+                    unit = product_first_match.group(3) or ''
                     
-                    # Only add if we have a product name
-                    if product_name:
-                        items.append(product_name)
-                        
-                        # Add quantity information if available
-                        if quantity_str:
-                            try:
-                                quantity = float(quantity_str)
-                                quantities[product_name] = {
-                                    'amount': quantity,
-                                    'unit': unit
-                                }
-                            except ValueError:
-                                # If conversion fails, default to quantity 1
-                                quantities[product_name] = {
-                                    'amount': 1,
-                                    'unit': ''
-                                }
+                    items.append(product)
+                    quantities[product] = {'amount': quantity, 'unit': unit}
                 else:
-                    # If regex doesn't match, just use the first word as product
-                    words = raw_item.split()
-                    if words:
-                        product_name = words[0].strip()
-                        if product_name:
-                            items.append(product_name)
-            except Exception:
-                # If any error occurs in parsing this item, try to extract at least the product name
-                words = raw_item.split()
-                if words:
-                    product_name = words[0].strip()
-                    if product_name:
-                        items.append(product_name)
+                    # No quantity found, just add the product
+                    items.append(part)
         
-        # Ensure we have at least one item
-        if not items and raw_items:
-            # Fallback: just use the first word of each raw item
-            for raw_item in raw_items:
-                words = raw_item.split()
-                if words:
-                    items.append(words[0].strip())
+        # If we couldn't parse anything, use a simple fallback
+        if not items and parts:
+            # Just use each part as a product name
+            items = parts
         
-        # Ensure we return the expected 3 values
         return items, quantities, budget
 
     def create_cart(self, items, quantities=None, budget=None):
@@ -140,33 +109,27 @@ class SioraAgent:
         for item in items:
             # Get close matches from product database
             product_names = [p['name'].lower() for p in self.products]
+            matches = difflib.get_close_matches(item.lower(), product_names, n=1, cutoff=0.6)
             
-            # Try to find a match with decreasing cutoff values
-            match_found = False
-            for cutoff in [0.8, 0.6, 0.4]:
-                matches = difflib.get_close_matches(item.lower(), product_names, n=3, cutoff=cutoff)
-                if matches:
-                    match_found = True
-                    best_match = matches[0]
-                    idx = product_names.index(best_match)
-                    product = self.products[idx].copy()  # Copy to avoid modifying original
-                    
-                    # Add quantity information if available
-                    if item in quantities:
-                        product['quantity'] = quantities[item]['amount']
-                        product['unit'] = quantities[item]['unit']
-                        # Adjust price based on quantity
-                        product['total_price'] = product['price'] * product['quantity']
-                    else:
-                        product['quantity'] = 1
-                        product['unit'] = ''
-                        product['total_price'] = product['price']
-                    
-                    cart.append(product)
-                    total += product['total_price']
-                    break
-            
-            if not match_found:
+            if matches:
+                best_match = matches[0]
+                idx = product_names.index(best_match)
+                product = self.products[idx].copy()  # Copy to avoid modifying original
+                
+                # Add quantity information if available
+                if item in quantities:
+                    product['quantity'] = quantities[item]['amount']
+                    product['unit'] = quantities[item]['unit']
+                    # Adjust price based on quantity
+                    product['total_price'] = product['price'] * product['quantity']
+                else:
+                    product['quantity'] = 1
+                    product['unit'] = ''
+                    product['total_price'] = product['price']
+                
+                cart.append(product)
+                total += product['total_price']
+            else:
                 not_found.append(item)
         
         # Check if cart is approved (within budget)
