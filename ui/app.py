@@ -53,6 +53,7 @@ if 'cart' not in st.session_state:
     st.session_state.purchase_ready = False
     st.session_state.error = None
     st.session_state.success_message = None
+    st.session_state.budget = None  # Add budget to session state
 
 # User input
 user_input = st.text_input(
@@ -68,7 +69,7 @@ def reset_cart():
     st.session_state.approved = False
     st.session_state.purchase_ready = False
     st.session_state.error = None
-    st.session_state.success_message = None
+    st.session_state.budget = None
 
 # Process user input
 if st.button("Ask Siora"):
@@ -79,6 +80,9 @@ if st.button("Ask Siora"):
             
             # Parse the request
             items, quantities, budget = agent.parse_request(user_input)
+            
+            # Store budget in session state
+            st.session_state.budget = budget
             
             if not items:
                 st.session_state.error = "I couldn't understand your request. Please try again with a clearer shopping list."
@@ -137,8 +141,8 @@ with col1:
         if st.session_state.not_found:
             st.warning(f"Could not find: {', '.join(st.session_state.not_found)}")
             
-        if not st.session_state.approved and budget is not None:
-            st.error(f"❌ Budget exceeded (₹{budget}). Please revise your cart before purchase.")
+        if not st.session_state.approved and st.session_state.budget is not None:
+            st.error(f"❌ Budget exceeded (₹{st.session_state.budget}). Please revise your cart before purchase.")
     else:
         st.info("No items found or added to cart.")
 
