@@ -8,95 +8,89 @@ class SioraAgent:
     def parse_request(self, request):
         """
         Parse a shopping request to extract product names, quantities, and budget.
-        
-        Example inputs:
-        - "buy atta 5 kgs and sugar 2 kgs"
-        - "I need rice 2kg, milk 1L under 500"
-        - "2kg rice, 1L milk, 5 apples"
-        
-        Returns:
-        - items: List of product names
-        - quantities: Dictionary of quantities
-        - budget: Budget limit or None
+        Always returns exactly 3 values: items, quantities, budget
         """
-        # Initialize return values
-        items = []
-        quantities = {}
-        budget = None
-        
-        # Clean and normalize the request
-        request = request.lower().strip()
-        
-        # Extract budget if present
-        budget_match = re.search(r'under\s+(\d+)', request)
-        if budget_match:
-            try:
-                budget = int(budget_match.group(1))
-            except (ValueError, IndexError):
-                budget = None
-        
-        # Clean up the request by removing common shopping phrases
-        request = re.sub(r'\b(buy|get|need|want|please)\b', '', request)
-        
-        # Replace 'and' with comma for consistent splitting
-        request = re.sub(r'\band\b', ',', request)
-        
-        # Split by commas
-        parts = [part.strip() for part in request.split(',') if part.strip()]
-        
-        for part in parts:
-            # Here we'll handle two possible formats:
-            # 1. "product quantity unit" format (e.g., "rice 2kg")
-            # 2. "quantity unit product" format (e.g., "2kg rice")
+        try:
+            # Initialize with default values
+            items = []
+            quantities = {}
+            budget = None
             
-            # Check for format #2 first (quantity comes first)
-            quantity_first_match = re.match(r'^(\d+(?:\.\d+)?)\s*([a-zA-Z]+)?\s+([a-zA-Z\s]+)$', part)
+            # Process input text - handle common formats
+            text = request.lower().strip()
             
-            if quantity_first_match:
-                # Format is "2kg rice" or "5 apples"
-                quantity = float(quantity_first_match.group(1))
-                unit = quantity_first_match.group(2) or ''
-                product = quantity_first_match.group(3).strip()
+            # Split by commas
+            parts = [part.strip() for part in text.split(',')]
+            
+            # Process each part to extract items and quantities
+            for part in parts:
+                # Try to identify the product and quantity
+                words = part.split()
+                if not words:
+                    continue
                 
-                items.append(product)
-                quantities[product] = {'amount': quantity, 'unit': unit}
-            else:
-                # Try format #1 (product comes first)
-                product_first_match = re.match(r'^([a-zA-Z\s]+)\s+(\d+(?:\.\d+)?)\s*([a-zA-Z]+)?$', part)
-                
-                if product_first_match:
-                    # Format is "rice 2kg"
-                    product = product_first_match.group(1).strip()
-                    quantity = float(product_first_match.group(2))
-                    unit = product_first_match.group(3) or ''
-                    
-                    items.append(product)
-                    quantities[product] = {'amount': quantity, 'unit': unit}
+                # Check if the first word starts with a number (e.g., "2kg rice")
+                if words[0][0].isdigit():
+                    # Format is likely "quantity product"
+                    # Extract quantity and unit
+                    quantity_match = re.match(r'(\d+(?:\.\d+)?)([a-zA-Z]*)', words[0])
+                    if quantity_match:
+                        quantity = float(quantity_match.group(1))
+                        unit = quantity_match.group(2) or ''
+                        
+                        # Join remaining words as product name
+                        product = ' '.join(words[1:])
+                        
+                        items.append(product)
+                        quantities[product] = {'amount': quantity, 'unit': unit}
+                    else:
+                        # Just add the whole part as a product
+                        items.append(part)
                 else:
-                    # No quantity found, just add the product
-                    items.append(part)
-        
-        # If we couldn't parse anything, use a simple fallback
-        if not items and parts:
-            # Just use each part as a product name
-            items = parts
-        
-        return items, quantities, budget
+                    # Format is likely "product quantity" or just "product"
+                    # Check if the last word starts with a number
+                    if len(words) > 1 and words[-1][0].isdigit():
+                        # Extract quantity and unit
+                        quantity_match = re.match(r'(\d+(?:\.\d+)?)([a-zA-Z]*)', words[-1])
+                        if quantity_match:
+                            quantity = float(quantity_match.group(1))
+                            unit = quantity_match.group(2) or ''
+                            
+                            # Join all but the last word as product name
+                            product = ' '.join(words[:-1])
+                            
+                            items.append(product)
+                            quantities[product] = {'amount': quantity, 'unit': unit}
+                        else:
+                            # Just add the whole part as a product
+                            items.append(part)
+                    else:
+                        # No quantity found, just add as product
+                        items.append(part)
+            
+            # Extract budget if present
+            budget_match = re.search(r'under\s+(\d+)', text)
+            if budget_match:
+                try:
+                    budget = int(budget_match.group(1))
+                except (ValueError, IndexError):
+                    budget = None
+                    
+            # Make sure we have at least one item
+            if not items and parts:
+                items = parts
+                
+            # Return exactly 3 values
+            return items, quantities, budget
+            
+        except Exception as e:
+            # If any error occurs, return default values
+            print(f"Error in parse_request: {str(e)}")
+            return [], {}, None
 
     def create_cart(self, items, quantities=None, budget=None):
         """
         Create a shopping cart based on the requested items.
-        
-        Args:
-            items: List of product names
-            quantities: Dictionary of product quantities {product_name: {'amount': float, 'unit': str}}
-            budget: Maximum total cost (optional)
-            
-        Returns:
-            cart: List of products in cart with quantities
-            total: Total cost
-            approved: Whether the cart is within budget
-            not_found: List of items not found
         """
         # Default empty dictionary if quantities is None
         if quantities is None:
