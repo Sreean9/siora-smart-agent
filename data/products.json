@@ -1,0 +1,22 @@
+{
+  "atta": {
+    "name": "Aashirvaad Atta 5kg",
+    "price": 250
+  },
+  "shampoo": {
+    "name": "Dove Shampoo 1L",
+    "price": 350
+  },
+  "rice": {
+    "name": "India Gate Basmati 1kg",
+    "price": 120
+  },
+  "oil": {
+    "name": "Fortune Sunflower Oil 1L",
+    "price": 160
+  },
+  "toothpaste": {
+    "name": "Colgate 200g",
+    "price": 90
+  }
+}
